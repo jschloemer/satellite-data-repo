@@ -14,6 +14,24 @@ max_frames = 0
 startStamp = ""
 endStamp = ""
 
+def update_duplicates(df):
+    # Create a list to store updated timestamps
+    updated_timestamps = []
+    
+    # Loop through the index of the data frame
+    for i in range(len(df['time'])):
+        # If the current timestamp is in the list of updated timestamps,
+        # update the timestamp by adding 1 second
+        if df['time'][i] in updated_timestamps:
+            new_timestamp = df['time'][i] + pd.Timedelta(seconds=1)
+            updated_timestamps.append(new_timestamp)
+            df.loc[df['time'][i]] = new_timestamp
+        else:
+            new_timestamp = df['time'][i]
+            updated_timestamps.append(new_timestamp)
+        #df.index = updated_timestamps
+    return df
+
 # Define the command line arguments
 parser = argparse.ArgumentParser(description='Take telemetry data and output it in realtime')
 parser.add_argument('input', help='a json file of timestamped telemetry data')
@@ -32,6 +50,9 @@ else:
 
 # Convert the timestamps to a pandas datetime format
 tf['time'] = pd.to_datetime(tf['time'])
+
+# Update the duplicates in the time
+# tf = update_duplicates(tf)
 
 # Set the timestamp as the index of the DataFrame
 tf = tf.set_index('time')
@@ -74,6 +95,11 @@ group_data = tf.loc[startStamp:endStamp]
 
 # Print the first 5 rows of the DataFrame
 print(group_data.head(25))
+
+# Print the values at the timestamp
+print(startStamp)
+loc1 - tf.index.get_loc(startStamp)
+print(tf['fields'][loc1])
 
 print("Maximum frames = " + str(max_frames))
 print("Start time = " + str(startStamp))
