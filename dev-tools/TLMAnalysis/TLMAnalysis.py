@@ -9,7 +9,7 @@ import json
 import pandas as pd
 
 # Global checks
-max_time = 22
+max_time = 66
 max_frames = 0
 startStamp = ""
 endStamp = ""
@@ -94,12 +94,12 @@ group_data = tf.loc[startStamp:endStamp]
 
 
 # Print the first 5 rows of the DataFrame
-print(group_data.head(25))
+#print(group_data.head(25))
 
 # Print the values at the timestamp
-print(startStamp)
+#print(startStamp)
 loc1 - tf.index.get_loc(startStamp)
-print(tf['fields'][loc1])
+#print(tf['fields'][loc1])
 
 print("Maximum frames = " + str(max_frames))
 print("Start time = " + str(startStamp))
