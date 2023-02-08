@@ -100,6 +100,7 @@ scipy==1.10.0
 sgp4==2.21
 shap==0.41.0
 six==1.16.0
+skyfield==1.45
 slicer==0.0.7
 smmap==5.0.0
 snowballstemmer==2.2.0

@@ -5,6 +5,7 @@
 # pip install pandas pyorbital
 
 import pandas as pd
+import numpy as np
 import math
 import argparse
 import json
@@ -12,8 +13,8 @@ import pyorbital.orbital
 from pyorbital import astronomy
 import datetime
 import ephem
-from numpy import dot
-from numpy.linalg import norm
+from skyfield.api import load
+from skyfield.api import EarthSatellite
 
 
 # Define the command line arguments
@@ -40,6 +41,10 @@ else:
     print("Other sources not supported yet")
     exit()
 
+# load the TLE data
+planets = load('de421.bsp')
+ts = load.timescale()
+
 desired_columns = ['EPOCH', 'TLE_LINE1', 'TLE_LINE2']
 df = in_df[desired_columns]
 
@@ -47,9 +52,13 @@ i = 0
 lastTime = df.index[-1]
 
 # Create an empty dataframe with columns for position data
-columns = ['timestamp', 'latitude', 'longitude', 'altitude', 'eclipsed']
+columns = ['timestamp', 'latitude', 'longitude', 'altitude', 'eclipsed', 'beta_angle', 'sun2vel_angle']
 tf = pd.DataFrame(columns=columns)
 tf['eclipsed'] = tf['eclipsed'].astype(bool)
+
+# Create empty dataframe with columns for TLE data
+columns = ['epoch', 'tle_line_1', 'tle_line_2']
+gf = pd.DataFrame(columns=columns)
 
 # Iterate over the index values
 for index, row in df.iterrows():
@@ -67,6 +76,13 @@ for index, row in df.iterrows():
         continue
     line1 = row['TLE_LINE1']
     line2 = row['TLE_LINE2']
+    
+    # Add usage to gf dataframe
+    # Create a new row with the data
+    ent = pd.DataFrame({'epoch': [date], 'tle_line_1': [line1], 'tle_line_2': [line2]})
+
+    # Concatenate the new row to the existing dataframe
+    gf = pd.concat([gf, ent], ignore_index=True)
     
     satellite = pyorbital.orbital.Orbital('LightSail-2',line1=line1, line2=line2)
     tle = ('LightSail-2', line1, line2)
@@ -87,22 +103,30 @@ for index, row in df.iterrows():
         eph.compute(time)
         ecl = eph.eclipsed
         
-        # Create an observer object for the current location on Earth
-        obs = ephem.Observer()
-        obs.lat = lat
-        obs.lon = lon
-        obs.elevation = alt
-        obs.date = time
-        
-        # Compute the position of the Sun
-        sun = ephem.Sun()
-        sun.compute(obs)
-        
-        # Calculate the angle between the velocity vector of the satellite and the Sun
-        #sunAngle = math.acos(v.dot(sun.vector) / (v.length() * sun.vector.length()))
+        # Compute Sun info
+        sat = EarthSatellite(line1, line2, 'LightSail-2', ts)
+        # create a Time object from the datetime variable
+        time2 = ts.utc(*time.timetuple()[:6])
+        eci = sat.at(time2).position.km
+        # compute the position of the Sun
+        sun = planets['sun'].at(time2).position.km
+        # compute the Sun vector in the ECI coordinate system
+        sun_vector = sun - eci
+
+        # compute the orbital plane normal vector
+        velocity = sat.at(time2).velocity.km_per_s
+        normal_vector = np.cross(eci, velocity)
+
+        # compute the beta angle
+        cos_beta = np.dot(normal_vector, sun_vector) / (np.linalg.norm(normal_vector) * np.linalg.norm(sun_vector))
+        beta = math.acos(cos_beta)
+
+        # compute the sun to velocity vector angle
+        cos_ang = np.dot(velocity, sun_vector) / (np.linalg.norm(velocity * np.linalg.norm(sun_vector)))
+        sun_ang = math.acos(cos_ang)
         
         # Create a new row with the data
-        row = pd.DataFrame({'timestamp': [time], 'latitude': [lat], 'longitude': [lon], 'altitude': [alt], 'eclipsed': [ecl]})
+        row = pd.DataFrame({'timestamp': [time], 'latitude': [lat], 'longitude': [lon], 'altitude': [alt], 'eclipsed': [ecl], 'beta_angle': [beta], 'sun2vel_angle': [sun_ang]})
 
         # Concatenate the new row to the existing dataframe
         tf = pd.concat([tf, row], ignore_index=True)
@@ -111,14 +135,14 @@ for index, row in df.iterrows():
         time = time + datetime.timedelta(minutes=1)
     
 # Print the first 25 rows of the DataFrame
-print(df.head(25))
+#print(df.head(25))
 
 # Export the data frame to a JSON file
-df.to_json('EpochTLEData.json', orient='index')
+gf.to_json('EpochTLEData.json', orient='index')
 
 # Print the first 25 rows of the DataFrame
-print(tf.head(90))
-print(tf.tail(5))
+#print(tf.head(90))
+#print(tf.tail(5))
 
 # Export the data frame to a JSON file
 tf.to_json('PosAndEventsData.json', orient='index')
