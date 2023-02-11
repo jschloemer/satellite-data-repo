@@ -43,7 +43,7 @@ duplicates = tf.index.duplicated(keep='first')
 tf = tf[~duplicates]
 
 # Print the first 5 rows of the DataFrame
-print(tf.head(25))
+#print(tf.head(25))
 
 # Set the start time
 start_time = time.time()
@@ -51,6 +51,10 @@ start_time = time.time()
 # Define the API endpoint for OpenMCT
 openmct_endpoint = "http://localhost:8080/telemetry"
 preTime = tf.index[int(args.index)]
+
+# Create an empty dataframe with columns for position data
+columns = ['measurand', 'value']
+df = pd.DataFrame(columns=columns)
 
 # Iterate over the index values
 for index, row in tf.iterrows():
@@ -68,12 +72,26 @@ for index, row in tf.iterrows():
     elapsed_time = time.time() - start_time
     #print(str(elapsed_time))
     #print(str((index - tf.index[int(args.index)]).total_seconds()))
+    
+    # Create an empty dataframe with columns for position data
+    columns = ['measurand', 'value']
+    df = pd.DataFrame(columns=columns)
 
     # Check if the elapsed time is equal to the time between timestamped indexes
     if elapsed_time >= (index - tf.index[int(args.index)]).total_seconds():
         # Send the request.post
         # Send the telemetry data to OpenMCT
         telemetry_data = tf['fields'][index]
+        #print(telemetry_data)
+        for row in telemetry_data:
+            value = telemetry_data[row]['value']
+            row = pd.DataFrame({'measurand': [row], 'value': [value]})
+            
+            # Concatenate the new row to the existing dataframe
+            df = pd.concat([df, row], ignore_index=True)
+            #print(value)
+        t_v = df[:]
+        print(t_v)    
         print("Tick")
         
         #response = requests.post(openmct_endpoint, json=telemetry_data)
