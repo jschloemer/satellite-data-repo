@@ -2,7 +2,7 @@
 # Author: Jeff Schloemer
 # Date: 02/06/2023
 
-# pip install pandas pyorbital
+# pip install pandas pyorbital pyephem pyorbital skyfield
 
 import pandas as pd
 import numpy as np
