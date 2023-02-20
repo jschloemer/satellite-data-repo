@@ -7,7 +7,8 @@
 import argparse
 import json
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
+import math
 
 # Define the command line arguments
 parser = argparse.ArgumentParser(description='Take telemetry data and output it in realtime')
@@ -25,16 +26,71 @@ else:
     print("Other sources not supported yet")
     exit()
 
-# Convert the timestamps to a pandas datetime format
+# replace every entry in "value" with the rounded average
+# find all columns that contain the string "tmp"
+dest_columns = [col for col in tf["fields"][0].keys() if "tmp" in col or "temp" in col or "curr" in col or "busv" in col or "volt" in col]
+
+# iterate over the columns and compute the average of their values
+for col in dest_columns:
+    values = [item[col]['value'] for item in tf['fields']]
+    average = round(pd.Series(values).mean(), 1)
+    for i, item in enumerate(tf['fields']):
+        tf['fields'][i][col]['value'] = average
+        
+# replace every entry in "value" with the rounded average
+# find all columns that contain the string "tmp"
+dest_columns = [col for col in tf["fields"][0].keys() if "callsign" in col or "ssidid" in col or "port" in col or "ctl" in col or "pid" in col or "addr" in col or "port" in col or "type" in col or "buffers" in col or "flags" in col or "type" in col or "status" in col or "fails" in col]
+
+# iterate over the columns and assign all values the first entry
+for col in dest_columns:
+    values = [item[col]['value'] for item in tf['fields']]
+    first = values[0]
+    for i, item in enumerate(tf['fields']):
+        tf['fields'][i][col]['value'] = first
+        
+# replace every entry in "value" with the rounded average
+# find all columns that contain the string "tmp"
+dest_columns = [col for col in tf["fields"][0].keys() if "College" in col or "Fredericksburg" in col or "Proton" in col or "Neutron" in col or "unspot" in col or "X-Ray" in col or "Solar" in col or "Optical" in col or "Radio" in col or "Regions" in col]
+
 tf['time'] = pd.to_datetime(tf['time'])
 
-# Try to average a single column
+# iterate over the columns and assign all values the first entry
+for col in dest_columns:
+    values = [item[col]['value'] for item in tf['fields']]
+    max = pd.Series(values).max()
+    if "unspot" in col:
+        print(max)
+    min = pd.Series(values).min()
+    if "unspot" in col:
+        print(min)
+    avg = pd.Series(values).mean()
+    if "unspot" in col:
+        print(avg)
+    amp = (max - (min - 1 * (max - avg)))/2
+    if "unspot" in col:
+        print(amp)
+    mid = (max + min)/2 - (max - avg)/2
+    if "unspot" in col:
+        print(mid)
+    for i, item in enumerate(tf['fields']):
+        seconds = pd.to_datetime(tf['time'][i]).timestamp()
+        negOK = False
+        if min < 0:
+            negOK = True
+        tmp = amp * math.sin(2 * math.pi / 3153600 * seconds) + mid
+        if negOK == False:
+            if tmp < 0:
+                tmp = 0
+        tf['fields'][i][col]['value'] = tmp
 
-print(tf['fields']['nx_tmp'].head())
+# Export the data frame to a JSON file
+tf.to_json('SimData.json', indent=4)
 
-tmps = tf['nx_tmp'].to_series()
-
-print(tmps)
+# Plots for debugging
+plt.plot(tf['time'], tf['fields'].apply(lambda x: x['SESC sunspot number']['value']))
+plt.xlabel('Time')
+plt.ylabel('Value')
+plt.show()
 
 
 # "dest_callsign": "constant",
