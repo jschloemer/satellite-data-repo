@@ -4,6 +4,8 @@
 
 # pip install pandas pyorbital pyephem pyorbital skyfield
 
+# Usage Example: python TLEProp.py /Users/jeffreyschloemer/GitHub/satellite-data-repo/tmp/LightSail_2_TLE.json "2019-07-02 18:15:08" "2021-10-04 13:59:39"
+
 import pandas as pd
 import numpy as np
 import math

@@ -2,17 +2,30 @@
 # Author: Jeff Schloemer
 # Date: 02/10/2023
 
-# pip install pandas
+# pip install pandas matplotlib scikit-learn
 
 import argparse
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import math
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score,mean_squared_error
+from sklearn import metrics
+from tqdm import tqdm
+
 
 # Define the command line arguments
 parser = argparse.ArgumentParser(description='Take telemetry data and output it in realtime')
 parser.add_argument('input', help='a json file of timestamped telemetry data')
+parser.add_argument('--PosData', help='a json file of timestamped position and orbit events data')
+parser.add_argument('--SpaceWx', help='a json file of timestamped space weather data for F10.7 Flux')
+
+# debug
+debug = False
 
 # Parse the command-line arguments
 args = parser.parse_args()
@@ -22,6 +35,27 @@ if args.input.endswith('json'):
     # Load the JSON file into a pandas DataFrame
     data = json.load(open(args.input))
     tf = pd.DataFrame(data["frames"])
+    df = pd.DataFrame(data["frames"])
+else:
+    print("Other sources not supported yet")
+    exit()
+    
+if args.PosData.endswith('json'):
+    # Load the JSON file into a pandas DataFrame
+    data = json.load(open(args.PosData))
+    posDf = pd.DataFrame(data)
+    # transpose the DataFrame
+    posDf = posDf.transpose()
+    #print(posDf)
+else:
+    print("Other sources not supported yet")
+    exit()
+    
+if args.SpaceWx.endswith('json'):
+    # Load the JSON file into a pandas DataFrame
+    data = json.load(open(args.SpaceWx))
+    WxDf = pd.DataFrame(data["data"])
+    WxDf[0] = pd.to_datetime(WxDf[0])
 else:
     print("Other sources not supported yet")
     exit()
@@ -59,19 +93,24 @@ for col in dest_columns:
     values = [item[col]['value'] for item in tf['fields']]
     max = pd.Series(values).max()
     if "unspot" in col:
-        print(max)
+        if debug:
+            print(max)
     min = pd.Series(values).min()
     if "unspot" in col:
-        print(min)
+        if debug:
+            print(min)
     avg = pd.Series(values).mean()
     if "unspot" in col:
-        print(avg)
+        if debug:
+            print(avg)
     amp = (max - (min - 1 * (max - avg)))/2
     if "unspot" in col:
-        print(amp)
+        if debug:
+            print(amp)
     mid = (max + min)/2 - (max - avg)/2
     if "unspot" in col:
-        print(mid)
+        if debug:
+            print(mid)
     for i, item in enumerate(tf['fields']):
         seconds = pd.to_datetime(tf['time'][i]).timestamp()
         negOK = False
@@ -86,11 +125,121 @@ for col in dest_columns:
 # Export the data frame to a JSON file
 tf.to_json('SimData.json', indent=4)
 
+## Digital twin (from state) section
+
+# Create an empty dataframe with columns for satellite tlm data
+xcolumns = ['timestamp', "spacewx", 'latitude', 'longitude', 'altitude', 'eclipsed', 'beta_angle', 'sun2vel_angle']
+xcoltelm = []
+ycolumns = []
+ecolumns = []
+
+dest_columns = [col for col in df["fields"][0].keys()]
+
+# Only copy attitude and rate data from the telemetry into the x columns
+for col in dest_columns:
+    if "_act" in col or "_rate" in col:
+        xcolumns.append(col)
+        xcoltelm.append(col)
+    else:
+        if str(df['fields'][0][col]['value']).isnumeric():
+            ycolumns.append(col)
+        else:
+            ecolumns.append(col)
+
+# Create x y and e dfs
+xdf = pd.DataFrame(columns=xcolumns)
+ydf = pd.DataFrame(columns=ycolumns)
+
+rows = len(df)
+
+# Iterate over the telemetry set
+for index, row in tqdm(df.iterrows(), desc="Processing Telemetry", bar_format="{l_bar}{bar:50}{r_bar}", total=rows):
+    values = []
+    timestamp = pd.to_datetime(row['time']).timestamp()
+    values.append(timestamp)
+    spacewx = np.interp(timestamp, WxDf[0].astype(int), WxDf[1])
+    values.append(spacewx)
+    latitude = np.interp(timestamp, posDf['timestamp'].astype(int), posDf['latitude'].astype(float))
+    values.append(latitude)
+    longitude = np.interp(timestamp, posDf['timestamp'].astype(int), posDf['longitude'].astype(float))
+    values.append(longitude)
+    altitude = np.interp(timestamp, posDf['timestamp'].astype(int), posDf['altitude'].astype(float))
+    values.append(altitude)
+    
+    # Eclipsed part - Using interp now due to uncertainty in interpolation
+    eclipsed = np.interp(timestamp, posDf['timestamp'].astype(int), posDf['eclipsed'].astype(int))
+    values.append(eclipsed)
+    
+    beta_angle = np.interp(timestamp, posDf['timestamp'].astype(int), posDf['beta_angle'].astype(float))
+    values.append(beta_angle)
+    sun2vel_angle = np.interp(timestamp, posDf['timestamp'].astype(int), posDf['sun2vel_angle'].astype(float))
+    values.append(sun2vel_angle)
+    for col in xcoltelm:
+        tmp = row['fields'][col]['value']
+        values.append(tmp)
+    
+    #print("=================")
+    #print(str(len(xcolumns)))
+    #print(str(len(values)))        
+    result = {xcolumns[i]: values[i] for i in range(len(xcolumns))}
+    tdf = pd.DataFrame(result, index=[0])
+    
+    # Concatenate the new row to the existing dataframe
+    xdf = pd.concat([xdf, tdf], ignore_index=True)
+    
+    # Go over the y columns
+    yval = []
+    for col in ycolumns:
+        tmp = row['fields'][col]['value']
+        yval.append(tmp)
+    
+    #print("=================")
+    #print(str(len(ycolumns)))
+    #print(str(len(yval)))    
+    result = {ycolumns[i]: yval[i] for i in range(len(ycolumns))}
+    tdf = pd.DataFrame(result, index=[0])
+    
+    # Concatenate the new row to the existing dataframe
+    ydf = pd.concat([ydf, tdf], ignore_index=True)
+    
+xdf.to_csv('xVals.csv', index=False)
+ydf.to_csv('yVals.csv', index=False)
+
+x_array = xdf.to_numpy()
+y_array = xdf.to_numpy()
+
+# Regression Time
+print('Performing Regression')
+modelControl = LinearRegression()
+modelTest = RandomForestRegressor(n_estimators=200, random_state=42)
+
+X_train, X_test, y_train, y_test = train_test_split(x_array, y_array, test_size=0.3)
+
+modelControl.fit(X_train, y_train)
+predictionsControl = modelControl.predict(X_test)
+modelControl.score(X_test, y_test)
+print("Control")
+print(r2_score(y_test, predictionsControl))
+print(mean_squared_error(y_test, predictionsControl))
+
+modelTest.fit(X_train, y_train)
+predictionsTest = modelTest.predict(X_test)
+ResTest = modelTest.predict(X_train)
+teacc = modelTest.score(X_train, y_train)
+veacc = modelTest.score(X_test, y_test)
+print("Test")
+print(r2_score(y_test, predictionsTest))
+print(mean_squared_error(y_test, predictionsTest))
+
+print('Training Accuracy : ', teacc)
+ 
+print('Validation Accuracy : ', veacc)
+    
 # Plots for debugging
-plt.plot(tf['time'], tf['fields'].apply(lambda x: x['SESC sunspot number']['value']))
-plt.xlabel('Time')
-plt.ylabel('Value')
-plt.show()
+# plt.plot(tf['time'], tf['fields'].apply(lambda x: x['SESC sunspot number']['value']))
+# plt.xlabel('Time')
+# plt.ylabel('Value')
+# plt.show()
 
 
 # "dest_callsign": "constant",

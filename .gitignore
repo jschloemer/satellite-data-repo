@@ -9,6 +9,7 @@ __pycache__/
 # Mac items
 .DS_Store
 dev-tools/*/*json
+dev-tools/*/*csv
 dev-tools/*/*bsp
 
 # Distribution / packaging

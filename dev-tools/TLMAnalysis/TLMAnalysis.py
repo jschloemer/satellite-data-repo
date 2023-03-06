@@ -4,6 +4,8 @@
 
 # pip install pandas
 
+# Usage Example: python TLMAnalysis.py /Users/jeffreyschloemer/GitHub/satellite-data-repo/tmp/normalized_frames.json
+
 import argparse
 import json
 import pandas as pd
@@ -53,6 +55,9 @@ tf['time'] = pd.to_datetime(tf['time'])
 
 # Update the duplicates in the time
 # tf = update_duplicates(tf)
+fileStart = tf['time'].iloc[0]
+fileEnd = tf['time'].iloc[-1]
+num_entries = tf.shape[0]
 
 # Set the timestamp as the index of the DataFrame
 tf = tf.set_index('time')
@@ -101,6 +106,10 @@ group_data = tf.loc[startStamp:endStamp]
 loc1 - tf.index.get_loc(startStamp)
 #print(tf['fields'][loc1])
 
-print("Maximum frames = " + str(max_frames))
+print("Maximum frames Nearby = " + str(max_frames))
 print("Start time = " + str(startStamp))
 print("End time = " + str(endStamp))
+print("==================================")
+print("Total Frames = " + str(num_entries))
+print("File Start = " + str(fileStart))
+print("File End = " + str(fileEnd))
