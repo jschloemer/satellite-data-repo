@@ -4,6 +4,8 @@
 
 # pip install pandas matplotlib scikit-learn
 
+# Usage Example: python SimDTTLMCreate.py /Users/jeffreyschloemer/GitHub/satellite-data-repo/tmp/normalized_frames.json --SpaceWx /Users/jeffreyschloemer/GitHub/satellite-data-repo/SpaceWeather/F10.7Flux.json --PosData /Users/jeffreyschloemer/GitHub/satellite-data-repo/dev-tools/TLEProp/PosAndEventsData.json
+
 import argparse
 import json
 import pandas as pd
